@@ -99,6 +99,7 @@
     <span class="badge">Next.js 15 → Vercel</span>
     <span class="badge">FastAPI → Hugging Face</span>
     <span class="badge">Whisper-small (STT)</span>
+    <span class="badge">ruBERT (тональность)</span>
     <span class="badge">minimax-m3 (OpenRouter)</span>
   </div>
   <div class="links">
@@ -148,9 +149,10 @@
       </tr>
       <tr>
         <td><b>3.</b> Дать агенту более сложную обработку / поэкспериментировать с моделями.</td>
-        <td><b>Адаптивные</b> уточняющие вопросы (раунды 2–3 строятся на анализе предыдущих ответов) +
-            классификация каждого пункта чеклиста по статусам (<code>confirmed</code> /
-            <code>needs_clarification</code> / <code>not_discussed</code>). См. раздел «Логика агента».</td>
+        <td><b>Адаптивные</b> уточняющие вопросы + классификация пунктов по статусам
+            (<code>confirmed</code> / <code>needs_clarification</code> / <code>not_discussed</code>),
+            плюс <b>вторая HF-модель</b> <code>ruBERT sentiment</code> — тон каждого ответа в чеклисте.
+            Закрыты обе ветки пункта 3 (и обработка, и эксперимент с моделями).</td>
         <td><span class="pill ok">готово</span></td>
       </tr>
     </table>
@@ -185,7 +187,8 @@
             <span class="chip">Markdown Generator</span>
           </div>
           <div class="inner" style="margin-top:8px">
-            <span class="chip">🎧 Whisper-small (локально, transformers+torch, CPU)</span>
+            <span class="chip">🎧 Whisper-small (STT, локально)</span>
+            <span class="chip">💬 ruBERT-sentiment (тон ответа)</span>
           </div>
         </div>
         <div class="arrow">
@@ -213,7 +216,7 @@
         <li><b>Старт сессии</b><span>Браузер → <code>POST /api/session/start</code>. Бэкенд просит у minimax-m3 первые 3 вводных вопроса и возвращает их + <code>session_id</code>.</span></li>
         <li><b>Запись голоса</b><span>На каждый вопрос пользователь жмёт «Записать». <code>MediaRecorder</code> создаёт аудио <code>webm/opus</code> прямо в браузере.</span></li>
         <li><b>Отправка ответов</b><span>Все 3 аудио уходят одним запросом → <code>POST /api/session/{id}/submit</code> (multipart/form-data).</span></li>
-        <li><b>Распознавание (STT)</b><span>Бэкенд для каждого аудио: <code>webm → ffmpeg → wav 16kHz mono → Whisper-small → текст</code>.</span></li>
+        <li><b>Распознавание + тон</b><span>Бэкенд для каждого аудио: <code>webm → ffmpeg → wav 16kHz mono → Whisper-small → текст</code>. Параллельно <b>ruBERT</b> оценивает тональность ответа (🙂/😐/🙁).</span></li>
         <li><b>Анализ + следующие вопросы</b><span>Транскрипты + цель интервью → minimax-m3. Модель пишет короткое резюме и <b>уточняющие</b> вопросы следующего раунда.</span></li>
         <li><b>Финал (после раунда 3)</b><span>Все ответы → minimax-m3 → структурированный чеклист (категории + статусы). Бэкенд рендерит <b>Markdown</b> и отдаёт его.</span></li>
         <li><b>Результат</b><span>Фронтенд показывает чеклист с чекбоксами и даёт кнопку «Скачать .md».</span></li>
@@ -237,6 +240,9 @@
       <div class="tile"><div class="tag">LLM · OpenRouter</div><h3>minimax/minimax-m3</h3>
         <p>Через OpenAI-совместимый SDK (<code>base_url=openrouter.ai</code>). Три функции агента: вопросы раунда,
            анализ, итоговый чеклист. Ответы — строгий JSON, парсятся устойчиво.</p></div>
+      <div class="tile"><div class="tag">Sentiment · Hugging Face</div><h3>ruBERT (тональность)</h3>
+        <p>Вторая HF-модель <code>seara/rubert-tiny2-russian-sentiment</code>. Каждый ответ клиента получает тон
+           (🙂 / 😐 / 🙁), который попадает в чеклист. Лёгкая (~118 МБ), быстрая на CPU.</p></div>
     </div>
   </section>
 

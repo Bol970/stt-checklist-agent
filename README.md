@@ -24,6 +24,7 @@ Frontend — Next.js 15 → Vercel
    ▼
 Backend — FastAPI → Hugging Face Space (Docker)
    ├─ Whisper-small (STT, локально, CPU)
+   ├─ ruBERT sentiment (тональность каждого ответа, HF)
    └─ Agent → OpenRouter (minimax/minimax-m3): вопросы, анализ, чеклист
 ```
 
@@ -31,6 +32,7 @@ Backend — FastAPI → Hugging Face Space (Docker)
 - **Backend:** Python 3.11 · FastAPI · transformers (whisper-small) · ffmpeg
 - **LLM:** `minimax/minimax-m3` через OpenRouter (OpenAI-совместимый SDK)
 - **STT:** `openai/whisper-small` локально
+- **Тональность:** `seara/rubert-tiny2-russian-sentiment` — вторая HF-модель, оценивает тон каждого ответа
 
 ## 📁 Структура
 

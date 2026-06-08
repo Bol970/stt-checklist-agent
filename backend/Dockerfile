@@ -22,6 +22,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Предзагрузка Whisper во время сборки -> быстрый холодный старт Space.
 RUN mkdir -p /app/.cache && chmod -R 777 /app/.cache
 RUN python -c "from transformers import pipeline; pipeline('automatic-speech-recognition', model='openai/whisper-small')"
+# Вторая HF-модель: тональность (ruBERT) — тоже кэшируем в образ.
+RUN python -c "from transformers import pipeline; pipeline('text-classification', model='seara/rubert-tiny2-russian-sentiment')"
 
 COPY ./app /app/app
 

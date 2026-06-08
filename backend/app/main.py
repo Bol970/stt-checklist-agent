@@ -10,6 +10,7 @@ from fastapi.responses import Response
 from . import agent, store
 from .config import settings
 from .markdown_gen import build_markdown
+from .sentiment import sentiment
 from .transcription import transcriber
 
 
@@ -21,6 +22,11 @@ async def lifespan(app: FastAPI):
         print("[startup] Whisper model loaded:", settings.whisper_model)
     except Exception as e:  # не валим старт — health покажет whisper_loaded=false
         print("[startup] Whisper load failed:", e)
+    try:
+        sentiment.load()
+        print("[startup] Sentiment model loaded:", settings.sentiment_model)
+    except Exception as e:
+        print("[startup] Sentiment load failed:", e)
     yield
 
 
@@ -55,6 +61,8 @@ def health():
         "status": "healthy",
         "whisper_loaded": transcriber.loaded,
         "whisper_model": settings.whisper_model,
+        "sentiment_loaded": sentiment.loaded,
+        "sentiment_model": settings.sentiment_model,
         "llm_model": settings.llm_model,
         "llm_key_set": bool(settings.openrouter_api_key),
     }
@@ -99,7 +107,12 @@ async def submit_answers(
     for f in audio_files:
         transcripts.append(transcriber.transcribe(await f.read()))
     for q, t in zip(questions, transcripts):
-        s["answers"].append({"round": s["current_round"], "question": q, "transcript": t})
+        s["answers"].append({
+            "round": s["current_round"],
+            "question": q,
+            "transcript": t,
+            "sentiment": sentiment.analyze(t),  # вторая HF-модель: тон ответа
+        })
 
     # Ещё есть раунды -> генерируем следующие вопросы (адаптивно).
     if s["current_round"] < settings.max_rounds:
@@ -135,6 +148,7 @@ def get_results(session_id: str):
     return {
         "session_id": session_id,
         "checklist": s["checklist_items"],
+        "answers": s["answers"],
         "markdown": s["markdown"],
         "is_complete": s["is_complete"],
     }

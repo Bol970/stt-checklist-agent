@@ -1,6 +1,6 @@
 """Сборка итогового Markdown-чеклиста из структурированных пунктов.
 Рендерим в Python (а не просим LLM) — так формат предсказуемый и стабильный."""
-from collections import OrderedDict
+from collections import Counter, OrderedDict
 from typing import Any, Dict, List
 
 _STATUS_BOX = {
@@ -44,11 +44,22 @@ def build_markdown(session: Dict[str, Any], items: List[Dict[str, Any]]) -> str:
 
     lines.append("---")
     lines.append("")
-    lines.append("## 📝 Ответы клиента (транскрипт)")
+    lines.append("## 📝 Ответы клиента (транскрипт + тональность)")
+    # Сводка тональности (вторая HF-модель — ruBERT sentiment).
+    tones = Counter((a.get("sentiment") or {}).get("label", "neutral") for a in session["answers"])
+    emoji = {"positive": "🙂", "neutral": "😐", "negative": "🙁"}
+    summary = " · ".join(
+        f"{emoji[k]} {tones.get(k, 0)}" for k in ("positive", "neutral", "negative") if tones.get(k, 0)
+    )
+    if summary:
+        lines.append(f"_Тон ответов: {summary}_")
+        lines.append("")
     for a in session["answers"]:
-        lines.append(f"- **{a['question']}**")
+        s = a.get("sentiment") or {}
+        tag = f"  {s.get('emoji', '')} {s.get('ru', '')}".rstrip()
+        lines.append(f"- **{a['question']}**{tag}")
         lines.append(f"  > {a.get('transcript') or '(пусто)'}")
     lines.append("")
     lines.append("---")
-    lines.append("*Сгенерировано автоматически: STT Checklist Agent — Whisper (HF) + minimax-m3 (OpenRouter).*")
+    lines.append("*Сгенерировано автоматически: STT Checklist Agent — Whisper + ruBERT-sentiment (HF) + minimax-m3 (OpenRouter).*")
     return "\n".join(lines)

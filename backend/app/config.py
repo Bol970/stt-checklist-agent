@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     # --- Whisper (STT) ---
     whisper_model: str = "openai/whisper-small"
 
+    # --- Тональность (вторая HF-модель) ---
+    sentiment_model: str = "seara/rubert-tiny2-russian-sentiment"
+
     # --- Логика интервью ---
     max_rounds: int = 3
     questions_per_round: int = 3
