@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STT Checklist Agent — как устроен проект</title>
+<style>
+  :root{
+    --indigo:#4f46e5; --violet:#7c3aed; --slate:#1e293b; --muted:#64748b;
+    --bg:#f6f7fb; --card:#ffffff; --line:#e8eaf2; --ok:#059669; --warn:#d97706; --info:#0ea5e9;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--slate); background:var(--bg); line-height:1.6;
+  }
+  .wrap{max-width:1000px; margin:0 auto; padding:0 20px 80px}
+  header{
+    background:linear-gradient(135deg,#4f46e5,#7c3aed 60%,#a855f7);
+    color:#fff; padding:56px 20px 64px; text-align:center;
+  }
+  header h1{margin:0 0 8px; font-size:34px; letter-spacing:-.5px}
+  header p{margin:0 auto; max-width:680px; font-size:17px; opacity:.95}
+  .badges{display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-top:22px}
+  .badge{background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.3);
+    padding:7px 14px; border-radius:999px; font-size:13px; font-weight:600}
+  .links{display:flex; gap:12px; flex-wrap:wrap; justify-content:center; margin-top:26px}
+  .links a{
+    background:#fff; color:var(--indigo); text-decoration:none; font-weight:700;
+    padding:11px 18px; border-radius:12px; font-size:14px; box-shadow:0 6px 20px rgba(0,0,0,.15);
+    transition:transform .1s;
+  }
+  .links a:hover{transform:translateY(-2px)}
+  .links a.ghost{background:rgba(255,255,255,.12); color:#fff; border:1px solid rgba(255,255,255,.4); box-shadow:none}
+  section{margin-top:44px}
+  h2{font-size:24px; margin:0 0 6px; display:flex; align-items:center; gap:10px}
+  h2 .n{display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px;
+    background:var(--indigo); color:#fff; border-radius:9px; font-size:15px; flex:none}
+  .lead{color:var(--muted); margin:0 0 18px}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:16px; padding:22px;
+    box-shadow:0 2px 10px rgba(30,41,59,.04)}
+  .grid{display:grid; gap:16px}
+  .grid.c2{grid-template-columns:repeat(2,1fr)}
+  .grid.c3{grid-template-columns:repeat(3,1fr)}
+  @media(max-width:760px){.grid.c2,.grid.c3{grid-template-columns:1fr}}
+  .tile{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px}
+  .tile h3{margin:0 0 6px; font-size:16px}
+  .tile .tag{font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--violet)}
+  .tile p{margin:8px 0 0; font-size:14px; color:#475569}
+  table{width:100%; border-collapse:collapse; font-size:14px; background:#fff; border-radius:12px; overflow:hidden}
+  th,td{padding:11px 13px; text-align:left; border-bottom:1px solid var(--line); vertical-align:top}
+  th{background:#f1f2f8; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#475569}
+  tr:last-child td{border-bottom:none}
+  code{background:#eef1f8; padding:2px 6px; border-radius:6px; font-size:13px; font-family:"SF Mono",Menlo,Consolas,monospace; color:#3730a3}
+  pre{background:#0f172a; color:#e2e8f0; padding:16px; border-radius:12px; overflow:auto; font-size:13px;
+    font-family:"SF Mono",Menlo,Consolas,monospace; line-height:1.5}
+  pre .c{color:#94a3b8}
+  .pill{display:inline-block; padding:2px 9px; border-radius:999px; font-size:12px; font-weight:700}
+  .pill.ok{background:#d1fae5; color:#065f46}
+  .pill.warn{background:#fef3c7; color:#92400e}
+  .pill.info{background:#e0f2fe; color:#075985}
+  /* diagram */
+  .diagram{display:flex; flex-direction:column; gap:0; align-items:center}
+  .box{border-radius:14px; padding:16px 18px; width:100%; max-width:620px; text-align:center; border:2px solid}
+  .box .t{font-weight:800; font-size:15px}
+  .box .s{font-size:13px; opacity:.85}
+  .box.fe{background:#eef2ff; border-color:#c7d2fe; color:#3730a3}
+  .box.be{background:#f5f3ff; border-color:#ddd6fe; color:#5b21b6}
+  .box.ext{background:#ecfeff; border-color:#a5f3fc; color:#155e75}
+  .arrow{color:var(--muted); font-size:13px; padding:8px 0; display:flex; flex-direction:column; align-items:center}
+  .arrow .lbl{background:#fff; border:1px solid var(--line); border-radius:8px; padding:3px 10px; font-size:12px}
+  .arrow .v{font-size:18px; line-height:1}
+  .inner{display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-top:10px}
+  .chip{background:rgba(255,255,255,.7); border:1px solid rgba(0,0,0,.06); border-radius:9px; padding:6px 10px; font-size:12px; font-weight:600}
+  ol.flow{counter-reset:s; list-style:none; padding:0; margin:0}
+  ol.flow li{position:relative; padding:0 0 18px 46px; border-left:2px solid var(--line); margin-left:14px}
+  ol.flow li:last-child{border-left-color:transparent}
+  ol.flow li::before{counter-increment:s; content:counter(s); position:absolute; left:-15px; top:-2px;
+    width:30px; height:30px; background:var(--indigo); color:#fff; border-radius:50%; display:flex;
+    align-items:center; justify-content:center; font-weight:700; font-size:14px}
+  ol.flow li b{display:block; margin-bottom:2px}
+  ol.flow li span{font-size:14px; color:#475569}
+  .note{border-left:4px solid var(--info); background:#f0f9ff; padding:14px 16px; border-radius:0 12px 12px 0; font-size:14px}
+  .note.warn{border-color:var(--warn); background:#fffbeb}
+  .footer{margin-top:50px; text-align:center; color:var(--muted); font-size:13px}
+  .kpi{display:flex; gap:16px; flex-wrap:wrap}
+  .kpi div{flex:1; min-width:130px; background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px; text-align:center}
+  .kpi .big{font-size:22px; font-weight:800; color:var(--indigo)}
+  .kpi .lbl{font-size:12px; color:var(--muted)}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🎤 STT Checklist Agent</h1>
+  <p>Голосовой AI-агент: задаёт вопросы по цели интервью, слушает голосовые ответы,
+     распознаёт их через <b>Whisper</b> и собирает структурированный чеклист созвона с клиентом.</p>
+  <div class="badges">
+    <span class="badge">Next.js 15 → Vercel</span>
+    <span class="badge">FastAPI → Hugging Face</span>
+    <span class="badge">Whisper-small (STT)</span>
+    <span class="badge">minimax-m3 (OpenRouter)</span>
+  </div>
+  <div class="links">
+    <a href="https://stt-checklist-agent.vercel.app" target="_blank">🌐 Открыть приложение</a>
+    <a class="ghost" href="https://bol970-stt-checklist-agent.hf.space/health" target="_blank">⚙️ Backend /health</a>
+    <a class="ghost" href="https://bol970-stt-checklist-agent.hf.space/docs" target="_blank">📘 API docs</a>
+    <a class="ghost" href="https://huggingface.co/spaces/Bol970/stt-checklist-agent" target="_blank">🤗 HF Space</a>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- TL;DR -->
+  <section>
+    <div class="card">
+      <h2 style="font-size:20px"><span class="n">i</span> Коротко: что это и как работает</h2>
+      <p class="lead">Пользователь нажимает «Начать», агент задаёт 3 вопроса. Человек отвечает голосом —
+        запись уходит на сервер, где <b>Whisper</b> превращает речь в текст, а модель <b>minimax-m3</b>
+        анализирует ответы и задаёт следующие <b>уточняющие</b> вопросы. Так 3 раунда (до 9 вопросов),
+        затем агент формирует <b>чеклист</b> в Markdown, который можно скачать.</p>
+      <div class="kpi">
+        <div><div class="big">3 × 3</div><div class="lbl">раунда × вопроса</div></div>
+        <div><div class="big">2</div><div class="lbl">платформы (Vercel + HF)</div></div>
+        <div><div class="big">100%</div><div class="lbl">голосовой ввод</div></div>
+        <div><div class="big">$0</div><div class="lbl">хостинг (free tier)</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Mapping to assignment -->
+  <section>
+    <h2><span class="n">1</span> Что просило задание — и что сделано</h2>
+    <p class="lead">Курс «Разработка с AI: автоматизация и продуктивность». Три пункта задания:</p>
+    <table>
+      <tr><th>Пункт задания</th><th>Как реализовано</th><th></th></tr>
+      <tr>
+        <td><b>1.</b> Базовый голосовой агент с целью; на основе цели и контекста задаёт вопросы, отвечаемые голосом.</td>
+        <td>Агент имеет <b>цель</b> «заполнить чеклист созвона». На её основе и на основе предыдущих
+            ответов (контекст) он генерирует вопросы. Ответы — только голосом (Whisper).</td>
+        <td><span class="pill ok">готово</span></td>
+      </tr>
+      <tr>
+        <td><b>2.</b> Опубликовать веб-сервис на Hugging Face и Vercel (или видео).</td>
+        <td>Бэкенд (FastAPI + Whisper) — на <b>Hugging Face Space</b>. Фронтенд (Next.js) — на <b>Vercel</b>.
+            Оба задеплоены и работают публично.</td>
+        <td><span class="pill ok">готово</span></td>
+      </tr>
+      <tr>
+        <td><b>3.</b> Дать агенту более сложную обработку / поэкспериментировать с моделями.</td>
+        <td><b>Адаптивные</b> уточняющие вопросы (раунды 2–3 строятся на анализе предыдущих ответов) +
+            классификация каждого пункта чеклиста по статусам (<code>confirmed</code> /
+            <code>needs_clarification</code> / <code>not_discussed</code>). См. раздел «Логика агента».</td>
+        <td><span class="pill ok">готово</span></td>
+      </tr>
+    </table>
+  </section>
+
+  <!-- Architecture -->
+  <section>
+    <h2><span class="n">2</span> Архитектура</h2>
+    <p class="lead">Два независимых сервиса. Браузер — это «руки и уши», вся логика — на бэкенде.</p>
+    <div class="card">
+      <div class="diagram">
+        <div class="box fe">
+          <div class="t">🖥️ FRONTEND — Vercel</div>
+          <div class="s">Next.js 15 · React 19 · TypeScript · Tailwind · shadcn-style UI</div>
+          <div class="inner">
+            <span class="chip">Запись с микрофона (MediaRecorder)</span>
+            <span class="chip">Экраны: старт → интервью → результат</span>
+            <span class="chip">Markdown-превью + скачивание .md</span>
+          </div>
+        </div>
+        <div class="arrow">
+          <span class="v">↓ ↑</span>
+          <span class="lbl">HTTPS · multipart/form-data (webm-аудио) · JSON</span>
+        </div>
+        <div class="box be">
+          <div class="t">🧠 BACKEND — Hugging Face Space (Docker)</div>
+          <div class="s">FastAPI · Python 3.11 · ffmpeg</div>
+          <div class="inner">
+            <span class="chip">Router /api/session/*</span>
+            <span class="chip">Session Manager (in-memory)</span>
+            <span class="chip">Agent (раунды, чеклист)</span>
+            <span class="chip">Markdown Generator</span>
+          </div>
+          <div class="inner" style="margin-top:8px">
+            <span class="chip">🎧 Whisper-small (локально, transformers+torch, CPU)</span>
+          </div>
+        </div>
+        <div class="arrow">
+          <span class="v">↓ ↑</span>
+          <span class="lbl">HTTPS · OpenAI-совместимый API</span>
+        </div>
+        <div class="box ext">
+          <div class="t">☁️ OpenRouter — LLM</div>
+          <div class="s">модель <b>minimax/minimax-m3</b> — генерация вопросов, анализ, чеклист</div>
+        </div>
+      </div>
+    </div>
+    <div class="note" style="margin-top:16px">
+      <b>Почему так:</b> распознавание речи (Whisper) — тяжёлое и приватное, ему место на сервере рядом с агентом.
+      Браузер только пишет звук и показывает UI. Это ровно разделение из исходного архитектурного документа:
+      <i>Frontend (Vercel) ⟷ Backend (HF) ⟷ внешний LLM</i>.
+    </div>
+  </section>
+
+  <!-- Data flow -->
+  <section>
+    <h2><span class="n">3</span> Поток данных (один раунд)</h2>
+    <div class="card">
+      <ol class="flow">
+        <li><b>Старт сессии</b><span>Браузер → <code>POST /api/session/start</code>. Бэкенд просит у minimax-m3 первые 3 вводных вопроса и возвращает их + <code>session_id</code>.</span></li>
+        <li><b>Запись голоса</b><span>На каждый вопрос пользователь жмёт «Записать». <code>MediaRecorder</code> создаёт аудио <code>webm/opus</code> прямо в браузере.</span></li>
+        <li><b>Отправка ответов</b><span>Все 3 аудио уходят одним запросом → <code>POST /api/session/{id}/submit</code> (multipart/form-data).</span></li>
+        <li><b>Распознавание (STT)</b><span>Бэкенд для каждого аудио: <code>webm → ffmpeg → wav 16kHz mono → Whisper-small → текст</code>.</span></li>
+        <li><b>Анализ + следующие вопросы</b><span>Транскрипты + цель интервью → minimax-m3. Модель пишет короткое резюме и <b>уточняющие</b> вопросы следующего раунда.</span></li>
+        <li><b>Финал (после раунда 3)</b><span>Все ответы → minimax-m3 → структурированный чеклист (категории + статусы). Бэкенд рендерит <b>Markdown</b> и отдаёт его.</span></li>
+        <li><b>Результат</b><span>Фронтенд показывает чеклист с чекбоксами и даёт кнопку «Скачать .md».</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- Components -->
+  <section>
+    <h2><span class="n">4</span> Из чего собрано (компоненты)</h2>
+    <div class="grid c2">
+      <div class="tile"><div class="tag">Frontend · Vercel</div><h3>Next.js 15 + React 19</h3>
+        <p>Экраны <code>Landing → Interview → Results</code> как состояние одной страницы. Хук
+           <code>useAudioRecorder</code> управляет микрофоном. Tailwind + shadcn-style компоненты (Button, Card, Progress).</p></div>
+      <div class="tile"><div class="tag">Backend · Hugging Face</div><h3>FastAPI</h3>
+        <p>Эндпоинты <code>/start</code>, <code>/transcribe</code>, <code>/submit</code>, <code>/results</code>,
+           <code>/download</code>, <code>/health</code>. Сессии — in-memory словарь. Запакован в Docker, порт 7860.</p></div>
+      <div class="tile"><div class="tag">STT · локально</div><h3>openai/whisper-small</h3>
+        <p>HuggingFace <code>transformers</code> pipeline на CPU. Модель скачивается на этапе сборки Docker —
+           быстрый холодный старт. <code>ffmpeg</code> конвертирует браузерный webm в wav.</p></div>
+      <div class="tile"><div class="tag">LLM · OpenRouter</div><h3>minimax/minimax-m3</h3>
+        <p>Через OpenAI-совместимый SDK (<code>base_url=openrouter.ai</code>). Три функции агента: вопросы раунда,
+           анализ, итоговый чеклист. Ответы — строгий JSON, парсятся устойчиво.</p></div>
+    </div>
+  </section>
+
+  <!-- Agent logic -->
+  <section>
+    <h2><span class="n">5</span> Логика агента (почему это «агент с целью»)</h2>
+    <div class="card">
+      <p style="margin-top:0">У агента есть зафиксированная <b>цель</b>:</p>
+      <pre><span class="c"># backend/app/prompts.py</span>
+GOAL = "Провести голосовое интервью с клиентом и заполнить чеклист созвона:
+        название и суть проекта, цели и метрики, сроки, бюджет,
+        технические требования и интеграции, риски и открытые вопросы."</pre>
+      <p>Каждый запрос к модели = <b>цель + контекст</b> (все предыдущие ответы). Поэтому вопросы
+         раунда 2–3 не шаблонные, а зависят от того, что человек уже сказал. Пример из реального прогона:</p>
+      <div class="grid c2" style="margin-top:6px">
+        <div class="tile"><div class="tag">Раунд 1 — вводный</div>
+          <p>«Как называется проект и в чём суть?» · «Какую бизнес-задачу решаете?» · «Сроки и бюджет?»</p></div>
+        <div class="tile"><div class="tag">Раунд 2 — адаптивный</div>
+          <p>Модель увидела «доставка еды, бюджет не назван» → спросила про <b>целевую аудиторию</b>,
+             <b>конкретные метрики</b> и <b>вилку бюджета</b>.</p></div>
+      </div>
+      <p style="margin-top:16px">Финал: каждый пункт чеклиста получает <b>статус</b>, что и есть «более сложная обработка» (пункт 3 задания):</p>
+      <p>
+        <span class="pill ok">confirmed</span> — факт чётко получен &nbsp;
+        <span class="pill warn">needs_clarification</span> — затронуто, но мутно &nbsp;
+        <span class="pill info">not_discussed</span> — важная тема не раскрыта
+      </p>
+    </div>
+  </section>
+
+  <!-- Compromises -->
+  <section>
+    <h2><span class="n">6</span> Компромиссы и отклонения от плана</h2>
+    <p class="lead">Честно: где реализация отличается от исходного архитектурного документа и почему.
+       (Этот раздел просили включить отдельно.)</p>
+    <table>
+      <tr><th>В документе было</th><th>Сделано</th><th>Почему</th></tr>
+      <tr>
+        <td>LLM = <b>Claude API</b> (Anthropic, Haiku)</td>
+        <td>LLM = <b>OpenRouter, minimax/minimax-m3</b></td>
+        <td>Прямое требование. Ключ Anthropic не используется; всё через OpenRouter.</td>
+      </tr>
+      <tr>
+        <td>Агент на <b>LangGraph</b> (граф узлов)</td>
+        <td>Агент на <b>чистом Python</b> (простая машина состояний по раундам)</td>
+        <td>Поток линейный (раунд 1→2→3). LangGraph здесь — лишние тяжёлые зависимости и точки отказа.
+            Шаги те же, код прозрачнее и легче отлаживать.</td>
+      </tr>
+      <tr>
+        <td>Роуты <code>/session/[id]</code> и <code>/results/[id]</code></td>
+        <td>Одна страница со сменой экранов (state machine)</td>
+        <td>Аудио-blob'ы живут в памяти браузера; при переходах между роутами их легко потерять.
+            Один stateful-экран надёжнее. Стек (Next.js 15 + Tailwind + shadcn-style) — как в плане.</td>
+      </tr>
+      <tr>
+        <td>Markdown генерирует LLM</td>
+        <td>Markdown рендерит <b>Python</b> из структурированного JSON</td>
+        <td>Детерминированный формат: чекбоксы и категории всегда корректны, не зависят от «настроения» модели.</td>
+      </tr>
+      <tr>
+        <td>Next.js 15.1</td>
+        <td>Next.js <b>15.5.19</b></td>
+        <td>Vercel блокирует деплой версий с известными CVE. Обновил до пропатченной 15.x.</td>
+      </tr>
+      <tr>
+        <td>Деплой через браузер-логин (скриншот)</td>
+        <td>Деплой через <b>write-токен</b> HF и токен Vercel (headless)</td>
+        <td>В headless-среде браузер-OAuth неудобен. Токен — эквивалентно и автоматизируемо.</td>
+      </tr>
+      <tr>
+        <td><code>ALLOWED_ORIGINS</code> = домен Vercel</td>
+        <td>CORS = <code>*</code> <span class="pill warn">упрощение</span></td>
+        <td>Чтобы не привязываться к домену. Легко ужесточить: задать секрет <code>ALLOWED_ORIGINS</code> у Space.</td>
+      </tr>
+      <tr>
+        <td>Хранилище сессий (MVP — in-memory)</td>
+        <td>In-memory словарь (как в MVP плана)</td>
+        <td>Сессии сбрасываются при перезапуске Space. Для учебного проекта достаточно; для prod — Redis/SQLite.</td>
+      </tr>
+    </table>
+    <div class="note" style="margin-top:14px">
+      <b>Примечание про модель:</b> в скриншоте <code>minimax/minimax-m3</code> на OpenRouter оказалась
+      <i>реальной</i> моделью (≈ $0.30 / $1.20 за 1M токенов вход/выход) — её и используем, как и просили.
+    </div>
+  </section>
+
+  <!-- Run locally -->
+  <section>
+    <h2><span class="n">7</span> Как запустить локально</h2>
+    <div class="grid c2">
+      <div class="card">
+        <h3 style="margin-top:0">Backend (FastAPI + Whisper)</h3>
+        <pre>cd backend
+bash setup_local.sh        <span class="c"># venv + torch(CPU) + deps</span>
+<span class="c"># создать .env из .env.example c ключом OpenRouter</span>
+source .venv/bin/activate
+uvicorn app.main:app --port 7860</pre>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">Frontend (Next.js)</h3>
+        <pre>cd frontend
+npm install
+<span class="c"># .env.local: NEXT_PUBLIC_API_URL=http://localhost:7860</span>
+npm run dev   <span class="c"># http://localhost:3000</span></pre>
+      </div>
+    </div>
+    <div class="note" style="margin-top:14px">
+      Микрофон в браузере работает только на <code>https://</code> или <code>http://localhost</code> —
+      это требование безопасности браузеров, не баг.
+    </div>
+  </section>
+
+  <!-- Security -->
+  <section>
+    <h2><span class="n">8</span> Безопасность ключей</h2>
+    <div class="note warn">
+      <b>Важно.</b> Ключи (OpenRouter, Vercel-токен, HF-токен) во время работы передавались в переписке —
+      их нужно считать скомпрометированными и <b>пересоздать</b>:
+      <ul style="margin:8px 0 0">
+        <li>OpenRouter → <code>openrouter.ai/settings/keys</code> (revoke + new), затем обновить секрет у HF Space.</li>
+        <li>Vercel → <code>vercel.com/account/tokens</code> (delete + new).</li>
+        <li>Hugging Face → <code>huggingface.co/settings/tokens</code> (revoke + new).</li>
+      </ul>
+      В коде/репозитории ключей нет: на бэкенде ключ — это <b>Secret</b> у HF Space, локально — в
+      <code>.env</code> (в <code>.gitignore</code>).
+    </div>
+  </section>
+
+  <div class="footer">
+    <p><b>Живые ссылки:</b><br>
+      Приложение → <a href="https://stt-checklist-agent.vercel.app">stt-checklist-agent.vercel.app</a><br>
+      Backend → <a href="https://bol970-stt-checklist-agent.hf.space/health">bol970-stt-checklist-agent.hf.space</a><br>
+      HF Space → <a href="https://huggingface.co/spaces/Bol970/stt-checklist-agent">huggingface.co/spaces/Bol970/stt-checklist-agent</a></p>
+    <p>Сгенерировано автоматически как финальный разбор проекта · STT Checklist Agent</p>
+  </div>
+
+</div>
+</body>
+</html>
