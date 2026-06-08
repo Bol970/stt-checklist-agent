@@ -80,9 +80,9 @@ def generate_questions(round_number: int, answers: List[Dict[str, Any]]) -> Dict
 
     questions = questions[: settings.questions_per_round]
     fallback = [
-        "Расскажите подробнее о вашем проекте и его главной цели.",
-        "Какие у вас желаемые сроки и ориентир по бюджету?",
-        "Какие технические требования и интеграции для вас важны?",
+        "Что за проект и какая у него главная цель?",
+        "Какие сроки и какой примерно бюджет?",
+        "Какие технические требования или интеграции важны?",
     ]
     i = 0
     while len(questions) < settings.questions_per_round:

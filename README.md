@@ -33,6 +33,7 @@ Backend — FastAPI → Hugging Face Space (Docker)
 - **LLM:** `minimax/minimax-m3` через OpenRouter (OpenAI-совместимый SDK)
 - **STT:** `openai/whisper-small` локально
 - **Тональность:** `seara/rubert-tiny2-russian-sentiment` — вторая HF-модель, оценивает тон каждого ответа
+- **Стиль вопросов:** принципы скилла [humanizer](https://github.com/blader/humanizer) (адаптация под русский) встроены в промпт — агент говорит разговорно, без канцелярита
 
 ## 📁 Структура
 
