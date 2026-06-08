@@ -2,10 +2,12 @@
 import subprocess
 import tempfile
 
+import os
+
 import requests
 from gtts import gTTS
 
-BASE = "http://localhost:7860"
+BASE = os.environ.get("BASE", "http://localhost:7860")
 
 ANSWERS = [
     [
