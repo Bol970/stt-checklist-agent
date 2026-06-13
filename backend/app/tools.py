@@ -81,3 +81,21 @@ def kb_search(query: str, top_k: int = 3) -> Dict[str, Any]:
             scored.append((score, title, body))
     scored.sort(key=lambda x: x[0], reverse=True)
     return {"snippets": [{"title": t, "text": b} for _, t, b in scored[:top_k]]}
+
+
+# --- web_search: Tavily (опционально) --------------------------------------
+def web_search(query: str, max_results: int = 3) -> Dict[str, Any]:
+    """Ищет в вебе через Tavily. Без TAVILY_API_KEY инструмент отключён."""
+    if not settings.tavily_api_key:
+        return {"error": "web search disabled (no TAVILY_API_KEY)"}
+    try:
+        from tavily import TavilyClient
+        client = TavilyClient(api_key=settings.tavily_api_key)
+        resp = client.search(query=query, max_results=max_results)
+        return {"results": [
+            {"title": r.get("title", ""), "url": r.get("url", ""),
+             "snippet": (r.get("content") or "")[:300]}
+            for r in resp.get("results", [])
+        ]}
+    except Exception as e:
+        return {"error": f"web search failed: {e}"}

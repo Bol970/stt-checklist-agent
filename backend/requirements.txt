@@ -12,3 +12,4 @@ transformers==4.47.1
 numpy<2
 soundfile==0.12.1
 pytest==8.3.4
+tavily-python==0.5.0
