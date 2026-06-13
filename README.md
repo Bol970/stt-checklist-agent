@@ -26,6 +26,7 @@ Backend — FastAPI → Hugging Face Space (Docker)
    ├─ Whisper-small (STT, локально, CPU)
    ├─ ruBERT sentiment (тональность каждого ответа, HF)
    └─ Agent → OpenRouter (minimax/minimax-m3): вопросы, анализ, чеклист
+        └─ сам решает, когда звать инструменты: calc · kb_search · web_search
 ```
 
 - **Frontend:** Next.js 15 · React 19 · TypeScript · Tailwind · shadcn-style UI
@@ -69,12 +70,30 @@ npm run dev                         # http://localhost:3000
 
 > Микрофон в браузере доступен только на `https://` или `http://localhost`.
 
+## 🧰 Инструменты агента и режимы
+
+Агент сам решает, когда вызвать инструмент (function calling, `minimax/minimax-m3`):
+- **`calc`** — точная арифметика по бюджету/срокам/команде (безопасный расчёт без `eval`);
+- **`kb_search`** — поиск по внутренней базе знаний `backend/app/knowledge_base.md` (типовые проекты, сроки, вилки бюджета, интеграции, риски) — чтобы задавать умные вопросы и не переспрашивать известное;
+- **`web_search`** — поиск в интернете через Tavily (нужен секрет `TAVILY_API_KEY`, без него инструмент просто отключён).
+
+**Восприятие времени (UX):** во время ожидания показываются реальные шаги агента (🎙/🗂/🧮/🔎/📝) + таймер и оценка; на экране результатов — раскрывающийся **лог сессии** (что именно делал агент).
+
+**Mock-режим (`MOCK_MODE=true`)** подставляет заготовленные ответы вместо распознавания голоса — для быстрого прогона без записи. Включать **только** после проверки, что реальный путь (голос) работает. На фронте — кнопка «⚡ Демо» при `NEXT_PUBLIC_DEMO_MODE=true`.
+
 ## 🔑 Переменные окружения
 
-| Где | Переменная | Назначение |
-|-----|-----------|-----------|
-| backend (`.env` / HF Secret) | `OPENROUTER_API_KEY` | ключ OpenRouter |
-| backend (опц.) | `ALLOWED_ORIGINS` | CORS, по умолчанию `*` |
-| frontend (`.env.local` / Vercel) | `NEXT_PUBLIC_API_URL` | URL бэкенда |
+Различаем **секреты** (ключи; HF Space → *Secrets*) и **переменные режима** (HF Space → *Variables*, дефолты можно коммитить).
+
+| Где | Переменная | Тип | Назначение |
+|-----|-----------|-----|-----------|
+| backend (`.env` / HF Secret) | `OPENROUTER_API_KEY` | секрет | ключ OpenRouter |
+| backend (`.env` / HF Secret) | `TAVILY_API_KEY` | секрет | веб-поиск Tavily (опц.; без него `web_search` отключён) |
+| backend (HF Variable) | `MOCK_MODE` | переменная | `true/false` — заготовленные ответы вместо STT |
+| backend (HF Variable, опц.) | `AGENT_MAX_TOOL_ITERS` | переменная | лимит итераций tool-calling (по умолч. 5) |
+| backend (HF Variable, опц.) | `KB_PATH` | переменная | путь к базе знаний |
+| backend (опц.) | `ALLOWED_ORIGINS` | переменная | CORS, по умолчанию `*` |
+| frontend (`.env.local` / Vercel) | `NEXT_PUBLIC_API_URL` | переменная | URL бэкенда |
+| frontend (опц.) | `NEXT_PUBLIC_DEMO_MODE` | переменная | `true` — показать кнопку демо-прогона |
 
 Секреты в репозиторий не коммитятся (`.env`, `.env.local` — в `.gitignore`).
