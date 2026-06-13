@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Loader2, Send } from "lucide-react";
+import { Send } from "lucide-react";
+import { ProgressPanel } from "@/components/ProgressPanel";
 import { QuestionCard } from "@/components/QuestionCard";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -34,11 +35,12 @@ export function Interview({
   );
   const allAnswered = answeredCount === questions.length;
 
-  async function handleSubmit() {
+  async function handleSubmit(override?: Record<string, Blob>) {
+    const src = override ?? blobs;
     setError(null);
     setSubmitting(true);
     try {
-      const orderedBlobs = questions.map((q) => blobs[q.id] as Blob);
+      const orderedBlobs = questions.map((q) => src[q.id] as Blob);
       const ids = questions.map((q) => q.id);
       const resp = await submitAnswers(sessionId, ids, orderedBlobs);
       onResult(resp);
@@ -53,7 +55,13 @@ export function Interview({
   }
 
   if (submitting) {
-    return <Processing round={round} maxRounds={maxRounds} />;
+    const last = round === maxRounds;
+    return (
+      <ProgressPanel
+        sessionId={sessionId}
+        title={last ? "Собираю чеклист…" : "Анализирую ваши ответы…"}
+      />
+    );
   }
 
   return (
@@ -70,6 +78,12 @@ export function Interview({
         </div>
         <Progress value={((round - 1) / maxRounds) * 100} />
       </div>
+
+      {answeredCount > 0 && (
+        <p className="mb-4 text-center text-sm font-medium text-emerald-600">
+          ✓ Ответ принят — можно переходить к следующему вопросу
+        </p>
+      )}
 
       {roundSummary && (
         <div className="mb-6 rounded-xl border border-indigo-100 bg-indigo-50/70 p-4 text-sm text-indigo-900">
@@ -95,7 +109,7 @@ export function Interview({
 
       <div className="sticky bottom-4 mt-8">
         <Button
-          onClick={handleSubmit}
+          onClick={() => handleSubmit()}
           disabled={!allAnswered || submitting}
           size="lg"
           className="w-full shadow-lg"
@@ -111,27 +125,24 @@ export function Interview({
         {error && (
           <p className="mt-2 text-center text-sm text-rose-600">{error}</p>
         )}
+        {process.env.NEXT_PUBLIC_DEMO_MODE === "true" && (
+          <Button
+            variant="outline"
+            className="mt-2 w-full"
+            disabled={submitting}
+            onClick={() => {
+              const filled: Record<string, Blob> = {};
+              questions.forEach((q) => {
+                filled[q.id] = new Blob([], { type: "audio/webm" });
+              });
+              setBlobs(filled);
+              handleSubmit(filled); // передаём напрямую, не дожидаясь обновления state
+            }}
+          >
+            ⚡ Демо: заполнить ответы автоматически
+          </Button>
+        )}
       </div>
-    </div>
-  );
-}
-
-function Processing({ round, maxRounds }: { round: number; maxRounds: number }) {
-  const last = round === maxRounds;
-  return (
-    <div className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center px-4 text-center">
-      <Loader2 className="h-12 w-12 animate-spin text-indigo-600" />
-      <h2 className="mt-6 text-xl font-semibold text-slate-800">
-        {last ? "Собираем чеклист…" : "Анализируем ваши ответы…"}
-      </h2>
-      <ul className="mt-4 space-y-1 text-sm text-slate-500">
-        <li>• Распознаём аудио (Whisper)</li>
-        <li>• Анализируем содержание (minimax-m3)</li>
-        <li>• {last ? "Формируем итоговый чеклист" : "Готовим уточняющие вопросы"}</li>
-      </ul>
-      <p className="mt-4 text-xs text-slate-400">
-        Распознавание на CPU может занять 10–30 секунд.
-      </p>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import type { StartResponse, SubmitResponse } from "./types";
+import type { StartResponse, SubmitResponse, ProgressResponse } from "./types";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || "http://localhost:7860";
@@ -41,4 +41,16 @@ export async function transcribeOne(blob: Blob): Promise<string> {
   if (!res.ok) throw new Error(`transcribe failed: ${res.status}`);
   const data = await res.json();
   return data.transcript as string;
+}
+
+export async function getProgress(sessionId: string): Promise<ProgressResponse> {
+  const res = await fetch(`${API_BASE}/api/session/${sessionId}/progress`);
+  if (!res.ok) throw new Error(`progress failed: ${res.status}`);
+  return res.json();
+}
+
+export async function getLog(sessionId: string): Promise<string> {
+  const res = await fetch(`${API_BASE}/api/session/${sessionId}/log`);
+  if (!res.ok) throw new Error(`log failed: ${res.status}`);
+  return res.text();
 }

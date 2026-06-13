@@ -7,9 +7,10 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
-from . import agent, store
+from . import agent, store, tools
 from .config import settings
 from .markdown_gen import build_markdown
+from .mock_data import mock_transcript
 from .sentiment import sentiment
 from .transcription import transcriber
 
@@ -65,6 +66,8 @@ def health():
         "sentiment_model": settings.sentiment_model,
         "llm_model": settings.llm_model,
         "llm_key_set": bool(settings.openrouter_api_key),
+        "mock_mode": settings.mock_mode,
+        "tools": [s["function"]["name"] for s in tools.TOOL_SCHEMAS],
     }
 
 
@@ -72,7 +75,9 @@ def health():
 def start_session():
     s = store.create_session()
     s["current_round"] = 1
-    result = agent.generate_questions(1, [])
+    s["logger"].start_phase(estimate_ms=20000)
+    s["logger"].step("Готовлю вопросы интервью", icon="📝")
+    result = agent.generate_questions(1, [], logger=s["logger"])
     s["questions"] = result["questions"]
     return {
         "session_id": s["session_id"],
@@ -86,6 +91,8 @@ def start_session():
 @app.post("/api/session/transcribe")
 async def transcribe_one(audio_file: UploadFile = File(...)):
     """Транскрипция одного аудио — для превью перед подтверждением ответа."""
+    if settings.mock_mode:
+        return {"transcript": "Демо-ответ (mock-режим)."}
     data = await audio_file.read()
     return {"transcript": transcriber.transcribe(data)}
 
@@ -102,10 +109,16 @@ async def submit_answers(
     if s["is_complete"]:
         return {"round": s["current_round"], "is_complete": True, "checklist_preview": s["markdown"]}
 
+    s["logger"].start_phase(estimate_ms=45000)
     questions = s["questions"]
     transcripts = []
-    for f in audio_files:
-        transcripts.append(transcriber.transcribe(await f.read()))
+    for i, f in enumerate(audio_files):
+        if settings.mock_mode:
+            s["logger"].step("Использую заготовленный ответ", icon="🎭")
+            transcripts.append(mock_transcript(s["current_round"], i))
+        else:
+            s["logger"].step("Распознаю речь", icon="🎙")
+            transcripts.append(transcriber.transcribe(await f.read()))
     for q, t in zip(questions, transcripts):
         s["answers"].append({
             "round": s["current_round"],
@@ -117,7 +130,8 @@ async def submit_answers(
     # Ещё есть раунды -> генерируем следующие вопросы (адаптивно).
     if s["current_round"] < settings.max_rounds:
         s["current_round"] += 1
-        result = agent.generate_questions(s["current_round"], s["answers"])
+        s["logger"].step("Готовлю уточняющие вопросы", icon="📝")
+        result = agent.generate_questions(s["current_round"], s["answers"], logger=s["logger"])
         s["questions"] = result["questions"]
         s["summaries"].append(result.get("summary", ""))
         return {
@@ -129,7 +143,8 @@ async def submit_answers(
         }
 
     # Последний раунд -> собираем чеклист.
-    items, summary = agent.generate_checklist(s["answers"])
+    s["logger"].step("Собираю итоговый чеклист", icon="📝")
+    items, summary = agent.generate_checklist(s["answers"], logger=s["logger"])
     md = build_markdown(s, items)
     s["checklist_items"], s["markdown"], s["is_complete"] = items, md, True
     return {
@@ -164,3 +179,20 @@ def download(session_id: str):
         media_type="text/markdown; charset=utf-8",
         headers={"Content-Disposition": f"attachment; filename=checklist-{session_id}.md"},
     )
+
+
+@app.get("/api/session/{session_id}/progress")
+def get_progress(session_id: str):
+    s = store.get(session_id)
+    if not s:
+        raise HTTPException(status_code=404, detail="session not found")
+    return s["logger"].progress()
+
+
+@app.get("/api/session/{session_id}/log")
+def get_log(session_id: str):
+    s = store.get(session_id)
+    if not s:
+        raise HTTPException(status_code=404, detail="session not found")
+    return Response(content=s["logger"].read_log() or "(лог пуст)",
+                    media_type="text/plain; charset=utf-8")

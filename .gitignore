@@ -19,8 +19,11 @@ backend/.cache/
 node_modules/
 frontend/.next/
 frontend/out/
+frontend/*.tsbuildinfo
 .vercel/
 
 # misc
 .DS_Store
 *.log
+logs/
+backend/logs/

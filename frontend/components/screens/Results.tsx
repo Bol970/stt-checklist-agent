@@ -4,6 +4,7 @@ import { Download, RotateCcw, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { renderMarkdown } from "@/lib/markdown";
+import { LogViewer } from "@/components/LogViewer";
 
 export function Results({
   markdown,
@@ -52,6 +53,8 @@ export function Results({
           <RotateCcw className="h-5 w-5" /> Начать заново
         </Button>
       </div>
+
+      <LogViewer sessionId={sessionId} />
     </div>
   );
 }
