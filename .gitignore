@@ -24,3 +24,5 @@ frontend/out/
 # misc
 .DS_Store
 *.log
+logs/
+backend/logs/
