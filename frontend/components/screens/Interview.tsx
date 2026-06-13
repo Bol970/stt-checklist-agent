@@ -35,11 +35,12 @@ export function Interview({
   );
   const allAnswered = answeredCount === questions.length;
 
-  async function handleSubmit() {
+  async function handleSubmit(override?: Record<string, Blob>) {
+    const src = override ?? blobs;
     setError(null);
     setSubmitting(true);
     try {
-      const orderedBlobs = questions.map((q) => blobs[q.id] as Blob);
+      const orderedBlobs = questions.map((q) => src[q.id] as Blob);
       const ids = questions.map((q) => q.id);
       const resp = await submitAnswers(sessionId, ids, orderedBlobs);
       onResult(resp);
@@ -108,7 +109,7 @@ export function Interview({
 
       <div className="sticky bottom-4 mt-8">
         <Button
-          onClick={handleSubmit}
+          onClick={() => handleSubmit()}
           disabled={!allAnswered || submitting}
           size="lg"
           className="w-full shadow-lg"
@@ -123,6 +124,23 @@ export function Interview({
         )}
         {error && (
           <p className="mt-2 text-center text-sm text-rose-600">{error}</p>
+        )}
+        {process.env.NEXT_PUBLIC_DEMO_MODE === "true" && (
+          <Button
+            variant="outline"
+            className="mt-2 w-full"
+            disabled={submitting}
+            onClick={() => {
+              const filled: Record<string, Blob> = {};
+              questions.forEach((q) => {
+                filled[q.id] = new Blob([], { type: "audio/webm" });
+              });
+              setBlobs(filled);
+              handleSubmit(filled); // передаём напрямую, не дожидаясь обновления state
+            }}
+          >
+            ⚡ Демо: заполнить ответы автоматически
+          </Button>
         )}
       </div>
     </div>
