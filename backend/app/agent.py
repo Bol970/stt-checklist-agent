@@ -12,6 +12,8 @@ from openai import OpenAI
 
 from .config import settings
 from . import prompts
+from . import tools
+from .session_log import SessionLogger
 
 _client: Optional[OpenAI] = None
 
@@ -48,29 +50,71 @@ def _extract_json(text: str) -> Any:
     return json.loads(text)
 
 
-def _chat(system: str, user: str, temperature: float = 0.6) -> str:
-    resp = _get_client().chat.completions.create(
-        model=settings.llm_model,
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-        temperature=temperature,
-        extra_headers={
-            # Необязательные заголовки OpenRouter (рейтинг/атрибуция).
-            "HTTP-Referer": "https://huggingface.co/spaces",
-            "X-Title": "STT Checklist Agent",
-        },
-    )
-    return resp.choices[0].message.content or ""
+_STEP_LABELS = {
+    "calc": ("🧮", "Считаю числа"),
+    "kb_search": ("🗂", "Сверяюсь с базой знаний"),
+    "web_search": ("🔎", "Ищу в вебе"),
+}
 
 
-def generate_questions(round_number: int, answers: List[Dict[str, Any]]) -> Dict[str, Any]:
+def run_agent(system: str, user: str, *, temperature: float = 0.6,
+              logger: Optional[SessionLogger] = None) -> str:
+    """Tool-calling loop: модель сама решает, звать ли инструменты. Возвращает финальный текст."""
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user", "content": user},
+    ]
+    last_content = ""
+    for _ in range(settings.agent_max_tool_iters):
+        resp = _get_client().chat.completions.create(
+            model=settings.llm_model,
+            messages=messages,
+            tools=tools.TOOL_SCHEMAS,
+            tool_choice="auto",
+            temperature=temperature,
+            extra_headers={
+                "HTTP-Referer": "https://huggingface.co/spaces",
+                "X-Title": "STT Checklist Agent",
+            },
+        )
+        msg = resp.choices[0].message
+        last_content = msg.content or last_content
+        if not msg.tool_calls:
+            return msg.content or ""
+        messages.append({
+            # content может быть None у assistant-сообщения с tool_calls — так и оставляем
+            "role": "assistant", "content": msg.content,
+            "tool_calls": [{"id": tc.id, "type": "function",
+                            "function": {"name": tc.function.name,
+                                         "arguments": tc.function.arguments}}
+                           for tc in msg.tool_calls],
+        })
+        for tc in msg.tool_calls:
+            name = tc.function.name
+            try:
+                args = json.loads(tc.function.arguments or "{}")
+            except Exception:
+                args = {}
+            result = tools.dispatch(name, args)
+            if logger is not None:
+                icon, label = _STEP_LABELS.get(name, ("🛠", f"Инструмент {name}"))
+                logger.step(label, icon=icon, tool=name, args=args,
+                            result=str(result)[:200])
+            messages.append({"role": "tool", "tool_call_id": tc.id,
+                             "content": json.dumps(result, ensure_ascii=False)})
+    # Исчерпали лимит итераций, а финального ответа модель так и не дала.
+    if logger is not None:
+        logger.step("Достигнут лимит вызовов инструментов", icon="⚠")
+    return last_content
+
+
+def generate_questions(round_number: int, answers: List[Dict[str, Any]],
+                       logger: Optional[SessionLogger] = None) -> Dict[str, Any]:
     """Возвращает {"summary": str, "questions": [str, ...]} — ровно N вопросов."""
     user = prompts.questions_user(
         prompts.GOAL, round_number, settings.questions_per_round, _format_history(answers)
     )
-    raw = _chat(prompts.QUESTIONS_SYSTEM, user)
+    raw = run_agent(prompts.QUESTIONS_SYSTEM, user, logger=logger)
     try:
         data = _extract_json(raw)
         questions = [str(q).strip() for q in data.get("questions", []) if str(q).strip()]
@@ -91,10 +135,11 @@ def generate_questions(round_number: int, answers: List[Dict[str, Any]]) -> Dict
     return {"summary": summary, "questions": questions}
 
 
-def generate_checklist(answers: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], str]:
+def generate_checklist(answers: List[Dict[str, Any]],
+                       logger: Optional[SessionLogger] = None) -> Tuple[List[Dict[str, Any]], str]:
     """Возвращает (items, summary). items — список пунктов чеклиста."""
     user = prompts.checklist_user(prompts.GOAL, _format_history(answers))
-    raw = _chat(prompts.CHECKLIST_SYSTEM, user, temperature=0.3)
+    raw = run_agent(prompts.CHECKLIST_SYSTEM, user, temperature=0.3, logger=logger)
     try:
         data = _extract_json(raw)
         items = data.get("items", [])
