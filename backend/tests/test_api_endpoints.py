@@ -25,3 +25,23 @@ def test_progress_and_log_endpoints(mock_q):
 
 def test_progress_404_for_unknown():
     assert client.get("/api/session/nope/progress").status_code == 404
+
+
+@patch("app.sentiment.sentiment.analyze",
+       return_value={"label": "neutral", "score": 0.0, "emoji": "😐", "ru": "нейтральный"})
+@patch("app.agent.generate_questions",
+       return_value={"summary": "s", "questions": ["q1", "q2", "q3"]})
+def test_submit_mock_mode_uses_canned_answers(mock_q, mock_sent, monkeypatch):
+    from app.mock_data import ROUND_ANSWERS
+
+    monkeypatch.setattr(config.settings, "mock_mode", True)
+    sid = client.post("/api/session/start").json()["session_id"]
+    files = [("audio_files", (f"a{i}.webm", b"", "audio/webm")) for i in range(3)]
+    r = client.post(f"/api/session/{sid}/submit", files=files,
+                    data={"question_ids": "q1_0,q1_1,q1_2"})
+    assert r.status_code == 200
+    # В mock-режиме транскрипты берутся из заготовок, а не из Whisper.
+    answers = client.get(f"/api/session/{sid}/results").json()["answers"]
+    assert [a["transcript"] for a in answers] == ROUND_ANSWERS[1]
+    # И это видно в логе сессии.
+    assert "заготовленный ответ" in client.get(f"/api/session/{sid}/log").text
