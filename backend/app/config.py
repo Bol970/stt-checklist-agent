@@ -25,5 +25,13 @@ class Settings(BaseSettings):
     # --- CORS: "*" или список origin через запятую ---
     allowed_origins: str = "*"
 
+    # --- Секрет: веб-поиск (опционально) ---
+    tavily_api_key: str = ""
+
+    # --- Переменные режима (не секреты) ---
+    mock_mode: bool = False           # MOCK_MODE=true → заготовленные ответы вместо STT
+    kb_path: str = "app/knowledge_base.md"  # путь к файлу базы знаний (kb_search)
+    agent_max_tool_iters: int = 5     # макс. итераций tool-calling в run_agent
+
 
 settings = Settings()
