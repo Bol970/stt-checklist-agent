@@ -34,3 +34,15 @@ export interface ChecklistItem {
   status: "confirmed" | "needs_clarification" | "not_discussed";
   notes: string | null;
 }
+
+export interface ProgressStep {
+  ts: number;
+  icon: string;
+  text: string;
+}
+
+export interface ProgressResponse {
+  steps: ProgressStep[];
+  elapsed_ms: number;
+  estimate_ms: number;
+}
