@@ -3,6 +3,8 @@
 import uuid
 from typing import Any, Dict, Optional
 
+from .session_log import SessionLogger
+
 sessions: Dict[str, Dict[str, Any]] = {}
 
 
@@ -17,6 +19,7 @@ def create_session() -> Dict[str, Any]:
         "checklist_items": [],    # итоговые пункты чеклиста
         "markdown": "",           # итоговый markdown
         "is_complete": False,
+        "logger": SessionLogger(sid),
     }
     return sessions[sid]
 
