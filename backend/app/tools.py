@@ -99,3 +99,46 @@ def web_search(query: str, max_results: int = 3) -> Dict[str, Any]:
         ]}
     except Exception as e:
         return {"error": f"web search failed: {e}"}
+
+
+# --- Реестр и схемы для OpenRouter function calling ------------------------
+TOOL_SCHEMAS: List[Dict[str, Any]] = [
+    {"type": "function", "function": {
+        "name": "calc",
+        "description": "Точно посчитать арифметику (бюджет, сроки, размер команды). "
+                       "Используй, когда в ответах есть числа, которые нужно перемножить/сложить.",
+        "parameters": {"type": "object",
+                       "properties": {"expr": {"type": "string",
+                                               "description": "Выражение, напр. '5 * 200000 * 3'"}},
+                       "required": ["expr"]}}},
+    {"type": "function", "function": {
+        "name": "kb_search",
+        "description": "Поиск по внутренней базе знаний компании (типовые проекты, сроки, "
+                       "вилки бюджета, интеграции, риски). Свернись с ней, чтобы задавать "
+                       "умные вопросы и не переспрашивать известное.",
+        "parameters": {"type": "object",
+                       "properties": {"query": {"type": "string"}},
+                       "required": ["query"]}}},
+    {"type": "function", "function": {
+        "name": "web_search",
+        "description": "Поиск в интернете по упомянутой клиентом технологии/сервису/интеграции, "
+                       "если её нет в базе знаний и нужно уточнить детали.",
+        "parameters": {"type": "object",
+                       "properties": {"query": {"type": "string"}},
+                       "required": ["query"]}}},
+]
+
+_REGISTRY: Dict[str, Callable[..., Dict[str, Any]]] = {
+    "calc": calc, "kb_search": kb_search, "web_search": web_search,
+}
+
+
+def dispatch(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
+    """Вызывает инструмент по имени; любые ошибки превращает в {"error": ...}."""
+    fn = _REGISTRY.get(name)
+    if fn is None:
+        return {"error": f"unknown tool: {name}"}
+    try:
+        return fn(**args)
+    except Exception as e:
+        return {"error": f"tool {name} failed: {e}"}
