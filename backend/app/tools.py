@@ -5,7 +5,7 @@ import ast
 import operator
 import re
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from .config import settings
 
@@ -44,3 +44,40 @@ def calc(expr: str) -> Dict[str, Any]:
         return {"result": _eval_node(ast.parse(expr, mode="eval"))}
     except Exception as e:
         return {"error": f"cannot evaluate '{expr}': {e}"}
+
+
+# --- kb_search: keyword-поиск по секциям knowledge_base.md ------------------
+_kb_cache: Optional[List[Tuple[str, str]]] = None  # в тестах сбрасывать в None при смене kb_path
+
+
+def _load_kb() -> List[Tuple[str, str]]:
+    global _kb_cache
+    if _kb_cache is None:
+        path = Path(settings.kb_path)
+        text = path.read_text(encoding="utf-8") if path.exists() else ""
+        sections: List[Tuple[str, str]] = []
+        title, lines = "Документ", []
+        for line in text.splitlines():
+            if line.startswith("#"):
+                if lines:
+                    sections.append((title, "\n".join(lines).strip()))
+                title, lines = line.lstrip("#").strip(), []
+            else:
+                lines.append(line)
+        if lines:
+            sections.append((title, "\n".join(lines).strip()))
+        _kb_cache = [(t, b) for t, b in sections if b]
+    return _kb_cache
+
+
+def kb_search(query: str, top_k: int = 3) -> Dict[str, Any]:
+    """Ищет релевантные секции в базе знаний компании по ключевым словам."""
+    words = [w.lower() for w in re.findall(r"\w+", query) if len(w) >= 2]
+    scored = []
+    for title, body in _load_kb():
+        hay = (title + " " + body).lower()
+        score = sum(hay.count(w) for w in words)
+        if score:
+            scored.append((score, title, body))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return {"snippets": [{"title": t, "text": b} for _, t, b in scored[:top_k]]}
